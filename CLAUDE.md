@@ -43,8 +43,9 @@ Always run `composer fix-style` first (php-cs-fixer auto-fixes what it can), the
 check-style` to surface remaining violations that must be fixed by hand, then `composer stan`, then
 `composer test` before finishing. If the `composer stan` wrapper runs out of memory, invoke PHPStan
 directly: `./bin/phpstan analyse --no-progress --memory-limit=-1`. CI
-(`.github/workflows/ci.yml`) runs the same three gates — style → PHPStan → PHPUnit-with-coverage — on
-push/PR to `main`.
+(`.github/workflows/ci.yml`) runs the same gates — style → PHPStan → PHPUnit-with-coverage — on push/PR
+to `main`, then enforces 100% coverage with `./bin/php-coverage-check` against the text coverage
+report the PHPUnit step writes to `.phpunit.cache/coverage.txt`.
 
 ## Architecture
 

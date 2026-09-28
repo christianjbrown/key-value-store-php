@@ -31,4 +31,7 @@ jobs:
         run: ./bin/phpstan analyse --no-progress
 
       - name: Run tests with coverage
-        run: XDEBUG_MODE=coverage php -d memory_limit=-1 ./bin/phpunit
+        run: XDEBUG_MODE=coverage php -d memory_limit=-1 ./bin/phpunit --coverage-text=.phpunit.cache/coverage.txt
+
+      - name: Enforce 100% coverage
+        run: ./bin/php-coverage-check .phpunit.cache/coverage.txt
