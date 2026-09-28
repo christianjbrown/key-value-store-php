@@ -1,6 +1,6 @@
 # Key-Value Store
 
-[![CI](https://github.com/christianjbrown/key-value-store-php/actions/workflows/ci.yml/badge.svg)](https://github.com/christianjbrown/key-value-store-php/actions/workflows/ci.yml)
+[![CI](https://github.com/christianjbrown/key-value-store-php/actions/workflows/ci.yml/badge.svg)](https://github.com/christianjbrown/key-value-store-php/actions/workflows/ci.yml) [![Packagist](https://img.shields.io/packagist/v/christianjbrown/key-value-store)](https://packagist.org/packages/christianjbrown/key-value-store)
 
 A small, strongly-typed PHP library of interchangeable **key-value stores**. Every store hides
 behind one tiny contract — `KeyValueStoreInterface` — so you can read, write, and update a single
