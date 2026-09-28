@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace ChristianBrown\KeyValueStore;
 
-use Exception;
 use Google\ApiCore\ApiException;
 use Google\Cloud\SecretManager\V1\AccessSecretVersionRequest;
 use Google\Cloud\SecretManager\V1\AddSecretVersionRequest;
-use Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient;
 use Google\Cloud\SecretManager\V1\SecretPayload;
-use RuntimeException;
 
 use function basename;
 use function mb_trim;
@@ -29,11 +26,7 @@ final class GoogleSecretKeyValueStore implements GoogleSecretKeyValueStoreInterf
 
     public static function create(string $secretPath): GoogleSecretKeyValueStoreInterface
     {
-        try {
-            $client = new GoogleSecretManagerClientAdapter(new SecretManagerServiceClient());
-        } catch (Exception $exception) {
-            throw new RuntimeException(self::CLIENT_START_FAILED, 0, $exception);
-        }
+        $client = (new DefaultSecretManagerClientFactory())->create();
 
         return new self($client, $secretPath);
     }
