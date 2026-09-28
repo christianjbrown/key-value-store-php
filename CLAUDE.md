@@ -25,10 +25,9 @@ Four stores ship today:
 
 Binaries install into `bin/` (Composer `bin-dir`), not `vendor/bin/`. Both `bin/` and `vendor/` are
 gitignored and Composer-installed, so run `composer install` first. The style tooling comes from the
-private `christianjbrown/code-quality-scripts` dev dependency: `check-style` lints with
+`christianjbrown/code-quality-scripts` dev dependency (public on Packagist): `check-style` lints with
 **PHP_CodeSniffer 4** using the `ChristianBrown` standard (slevomat sniffs plus PSR/PEAR/Squiz/Generic),
-while **php-cs-fixer** (`@PhpCsFixer`/`@Symfony`) handles formatting; installing it needs
-SSH/`COMPOSER_AUTH` access to the private repo.
+while **php-cs-fixer** (`@PhpCsFixer`/`@Symfony`) handles formatting.
 
 | Task | Command |
 | --- | --- |
@@ -44,8 +43,9 @@ Always run `composer fix-style` first (php-cs-fixer auto-fixes what it can), the
 check-style` to surface remaining violations that must be fixed by hand, then `composer stan`, then
 `composer test` before finishing. If the `composer stan` wrapper runs out of memory, invoke PHPStan
 directly: `./bin/phpstan analyse --no-progress --memory-limit=-1`. CI
-(`.github/workflows/ci.yml`) runs the same three gates — style → PHPStan → PHPUnit-with-coverage — on
-push/PR to `main`, supplying private-repo credentials via the `COMPOSER_AUTH` secret.
+(`.github/workflows/ci.yml`) runs the same gates — style → PHPStan → PHPUnit-with-coverage — on push/PR
+to `main`, then enforces 100% coverage with `./bin/php-coverage-check` against the text coverage
+report the PHPUnit step writes to `.phpunit.cache/coverage.txt`.
 
 ## Architecture
 
@@ -78,8 +78,14 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   cannot be doubled, so the store never depends on it directly. **`GoogleSecretManagerClientAdapter`**
   (`final`, implements `SecretManagerClientInterface`) is the single production implementation: it
   wraps the real final v2 client and delegates each call one-to-one. The static `create()` factory is
-  the production convenience that builds the real v2 client from `GOOGLE_APPLICATION_CREDENTIALS`,
-  wraps it in the adapter, and injects that. `getValue()` reads the `/versions/latest` version;
+  the production convenience that resolves a `SecretManagerClientInterface` via
+  **`SecretManagerClientFactoryInterface`** and injects it — building the real v2 client is not inline
+  in `create()`, it is `DefaultSecretManagerClientFactory` (`final`), which builds the client from
+  `GOOGLE_APPLICATION_CREDENTIALS`, wraps it in the adapter, and normalizes any startup failure into
+  `RuntimeException(GoogleSecretKeyValueStoreInterface::CLIENT_START_FAILED)`. `create(string
+  $secretPath)`'s signature and behaviour are unchanged; a consumer that wants a different client
+  construction implements `SecretManagerClientFactoryInterface` itself and calls the
+  `GoogleSecretKeyValueStore` constructor directly instead of `create()`. `getValue()` reads the `/versions/latest` version;
   `setValue()` adds a new secret version — both build the v2 request objects
   (`AccessSecretVersionRequest`/`AddSecretVersionRequest`) and call the port. Secret Manager has no
   TTL, so this store implements only the base `KeyValueStoreInterface` (no `getTtl()`, no TTL-bearing
@@ -95,8 +101,10 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   (unlike the database store). The **constructor-injected** collaborator is a single
   `Google\Cloud\Firestore\DocumentReference` (the one document this store reads/writes), the cleanest
   mockable seam; the static `create(FirestoreClient $client, string $collection, string $documentId)`
-  factory resolves `$client->collection($collection)->document($documentId)` and news up the store.
-  The document holds two fields (`FIELD_VALUE`, `FIELD_EXPIRES_AT` on the interface): the string value
+  factory resolves the `DocumentReference` via **`FirestoreDocumentReferenceFactoryInterface`**
+  (production implementation **`DefaultFirestoreDocumentReferenceFactory`**, `final`, which does
+  `$client->collection($collection)->document($documentId)`) and news up the store. `create()`'s
+  signature and behaviour are unchanged. The document holds two fields (`FIELD_VALUE`, `FIELD_EXPIRES_AT` on the interface): the string value
   and an integer `expiresAt` unix timestamp. `setValue()` writes both via `DocumentReference::set()`,
   storing `expiresAt` as `time() + $ttl` (or `null`). `getValue()` reads the snapshot — `null` when the
   document does not exist or `expiresAt` has passed, else the value; `getTtl()` returns

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ChristianBrown\KeyValueStore\Tests;
 
+use ChristianBrown\KeyValueStore\DefaultSecretManagerClientFactory;
 use ChristianBrown\KeyValueStore\GoogleSecretKeyValueStore;
 use ChristianBrown\KeyValueStore\GoogleSecretKeyValueStoreExceptionInterface;
 use ChristianBrown\KeyValueStore\GoogleSecretKeyValueStoreInterface;
@@ -24,6 +25,7 @@ use function putenv;
 use function sprintf;
 
 #[CoversClass(GoogleSecretKeyValueStore::class)]
+#[UsesClass(DefaultSecretManagerClientFactory::class)]
 #[UsesClass(GoogleSecretManagerClientAdapter::class)]
 final class GoogleSecretKeyValueStoreTest extends TestCase
 {

@@ -23,7 +23,7 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
 
     public static function create(FirestoreClient $client, string $collection, string $documentId): FirestoreKeyValueStoreInterface
     {
-        $documentReference = $client->collection($collection)->document($documentId);
+        $documentReference = (new DefaultFirestoreDocumentReferenceFactory())->create($client, $collection, $documentId);
 
         return new self($documentReference);
     }
