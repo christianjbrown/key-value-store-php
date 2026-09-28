@@ -25,10 +25,9 @@ Four stores ship today:
 
 Binaries install into `bin/` (Composer `bin-dir`), not `vendor/bin/`. Both `bin/` and `vendor/` are
 gitignored and Composer-installed, so run `composer install` first. The style tooling comes from the
-private `christianjbrown/code-quality-scripts` dev dependency: `check-style` lints with
+`christianjbrown/code-quality-scripts` dev dependency (public on Packagist): `check-style` lints with
 **PHP_CodeSniffer 4** using the `ChristianBrown` standard (slevomat sniffs plus PSR/PEAR/Squiz/Generic),
-while **php-cs-fixer** (`@PhpCsFixer`/`@Symfony`) handles formatting; installing it needs
-SSH/`COMPOSER_AUTH` access to the private repo.
+while **php-cs-fixer** (`@PhpCsFixer`/`@Symfony`) handles formatting.
 
 | Task | Command |
 | --- | --- |
@@ -45,7 +44,7 @@ check-style` to surface remaining violations that must be fixed by hand, then `c
 `composer test` before finishing. If the `composer stan` wrapper runs out of memory, invoke PHPStan
 directly: `./bin/phpstan analyse --no-progress --memory-limit=-1`. CI
 (`.github/workflows/ci.yml`) runs the same three gates — style → PHPStan → PHPUnit-with-coverage — on
-push/PR to `main`, supplying private-repo credentials via the `COMPOSER_AUTH` secret.
+push/PR to `main`.
 
 ## Architecture
 
