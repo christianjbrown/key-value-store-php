@@ -24,13 +24,6 @@ final class GoogleSecretKeyValueStore implements GoogleSecretKeyValueStoreInterf
         $this->secretPath = mb_trim($secretPath, '/');
     }
 
-    public static function create(string $secretPath): GoogleSecretKeyValueStoreInterface
-    {
-        $client = (new DefaultSecretManagerClientFactory())->create();
-
-        return new self($client, $secretPath);
-    }
-
     public function getValue(): ?string
     {
         $value = null;
