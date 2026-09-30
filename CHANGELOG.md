@@ -6,6 +6,26 @@ All notable changes to this package are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `FirestoreKeyValueStore` now takes a `FirestoreDocumentAdapterInterface` in its
+  constructor instead of a `Google\Cloud\Firestore\DocumentReference`, so it no longer depends on a
+  Google class. `FirestoreDocumentAdapter` wraps a `DocumentReference` for production use.
+- **Breaking:** `FirestoreDocumentReferenceFactoryInterface` and `DefaultFirestoreDocumentReferenceFactory`
+  are replaced by `FirestoreDocumentAdapterFactoryInterface` and `DefaultFirestoreDocumentAdapterFactory`,
+  which return an adapter.
+
+### Added
+
+- `GoogleSecretKeyValueStoreFactory` and `FirestoreKeyValueStoreFactory`, each behind an interface, as
+  the way to build those stores.
+
+### Removed
+
+- **Breaking:** the static `GoogleSecretKeyValueStore::create()` and `FirestoreKeyValueStore::create()`
+  factories, and `create()` on `GoogleSecretKeyValueStoreInterface` and `FirestoreKeyValueStoreInterface`.
+  Use the new factory classes. See "Upgrading to 2.0" in the README.
+
 ## [1.0.0] - 2026-09-28
 
 First stable release.

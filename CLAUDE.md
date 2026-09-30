@@ -9,8 +9,9 @@ A thin, strongly-typed PHP 8.5+ library of interchangeable **key-value store** i
 store is a simple `get`/`set` of a single `?string` value (plus an optional `?int` TTL) behind one
 tiny contract, `KeyValueStoreInterface`, so callers can swap the backing store without changing code.
 It exists to hold small pieces of state — configuration flags, refresh tokens, cursors — and is
-consumed by other libraries and a cloud function, so **the public API must not change** (class names,
-the `ChristianBrown\KeyValueStore\` namespace, and every public method signature are frozen).
+consumed by other libraries and a cloud function, so **the public API is stable within a major version** (class names,
+the `ChristianBrown\KeyValueStore\` namespace, and every public method signature; a breaking change
+needs a major release and a CHANGELOG entry marked breaking).
 
 Four stores ship today:
 
@@ -83,15 +84,16 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   `google/cloud-secret-manager` v2 client (`V1\Client\SecretManagerServiceClient`) is `final` and
   cannot be doubled, so the store never depends on it directly. **`GoogleSecretManagerClientAdapter`**
   (`final`, implements `SecretManagerClientInterface`) is the single production implementation: it
-  wraps the real final v2 client and delegates each call one-to-one. The static `create()` factory is
-  the production convenience that resolves a `SecretManagerClientInterface` via
-  **`SecretManagerClientFactoryInterface`** and injects it — building the real v2 client is not inline
-  in `create()`, it is `DefaultSecretManagerClientFactory` (`final`), which builds the client from
-  `GOOGLE_APPLICATION_CREDENTIALS`, wraps it in the adapter, and normalizes any startup failure into
-  `RuntimeException(GoogleSecretKeyValueStoreInterface::CLIENT_START_FAILED)`. `create(string
-  $secretPath)`'s signature and behaviour are unchanged; a consumer that wants a different client
-  construction implements `SecretManagerClientFactoryInterface` itself and calls the
-  `GoogleSecretKeyValueStore` constructor directly instead of `create()`. `getValue()` reads the `/versions/latest` version;
+  wraps the real final v2 client and delegates each call one-to-one. There is no static `create()`:
+  **`GoogleSecretKeyValueStoreFactory`** (`final`, behind `GoogleSecretKeyValueStoreFactoryInterface`) is
+  the way to build the store from a secret path. It is constructed with a
+  **`SecretManagerClientFactoryInterface`** and `create(string $secretPath)` news up the store with the
+  client that factory returns. The production client factory is `DefaultSecretManagerClientFactory`
+  (`final`), which builds the client from `GOOGLE_APPLICATION_CREDENTIALS`, wraps it in the adapter, and
+  normalizes any startup failure into
+  `RuntimeException(GoogleSecretKeyValueStoreInterface::CLIENT_START_FAILED)`. A consumer that wants a
+  different client construction implements `SecretManagerClientFactoryInterface` itself.
+  `getValue()` reads the `/versions/latest` version;
   `setValue()` adds a new secret version — both build the v2 request objects
   (`AccessSecretVersionRequest`/`AddSecretVersionRequest`) and call the port. Secret Manager has no
   TTL, so this store implements only the base `KeyValueStoreInterface` (no `getTtl()`, no TTL-bearing
@@ -99,20 +101,24 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   into `GoogleSecretKeyValueStoreException`. The adapter's two pass-throughs are covered by building a
   real v2 client over `google/gax`'s `Google\ApiCore\Testing\MockTransport` (plus a stubbed
   `CredentialsWrapper`) that returns a canned response — the one place the real final SDK client is
-  exercised, alongside `create()`.
+  exercised, alongside `DefaultSecretManagerClientFactory`.
 - **`GoogleSecretKeyValueStoreException` / `GoogleSecretKeyValueStoreExceptionInterface`** — the one
   library-specific exception (a `RuntimeException`), so callers can `catch` the interface.
 - **`FirestoreKeyValueStore` / `FirestoreKeyValueStoreInterface`** — wraps Google's `FirestoreClient`.
   It is serverless and connectionless — no VPC connector (unlike Redis) or Cloud SQL connection
-  (unlike the database store). The **constructor-injected** collaborator is a single
-  `Google\Cloud\Firestore\DocumentReference` (the one document this store reads/writes), the cleanest
-  mockable seam; the static `create(FirestoreClient $client, string $collection, string $documentId)`
-  factory resolves the `DocumentReference` via **`FirestoreDocumentReferenceFactoryInterface`**
-  (production implementation **`DefaultFirestoreDocumentReferenceFactory`**, `final`, which does
-  `$client->collection($collection)->document($documentId)`) and news up the store. `create()`'s
-  signature and behaviour are unchanged. The document holds two fields (`FIELD_VALUE`, `FIELD_EXPIRES_AT` on the interface): the string value
-  and an integer `expiresAt` unix timestamp. `setValue()` writes both via `DocumentReference::set()`,
-  storing `expiresAt` as `time() + $ttl` (or `null`). `getValue()` reads the snapshot — `null` when the
+  (unlike the database store). The **constructor-injected** collaborator is a
+  **`FirestoreDocumentAdapterInterface`** (two methods: `getFields(): ?array`, null when the document
+  does not exist, and `setFields(array)`), so the store never touches Google's classes.
+  **`FirestoreDocumentAdapter`** (`final`) is the production implementation wrapping one
+  `Google\Cloud\Firestore\DocumentReference`, the same pattern as `GoogleSecretManagerClientAdapter`.
+  There is no static `create()`: **`FirestoreKeyValueStoreFactory`** (`final`, behind
+  `FirestoreKeyValueStoreFactoryInterface`) builds the store from `(FirestoreClient $client, string
+  $collection, string $documentId)`. It is constructed with a **`FirestoreDocumentAdapterFactoryInterface`**
+  (production implementation **`DefaultFirestoreDocumentAdapterFactory`**, `final`, which does
+  `new FirestoreDocumentAdapter($client->collection($collection)->document($documentId))`).
+  The document holds two fields (`FIELD_VALUE`, `FIELD_EXPIRES_AT` on the interface): the string value
+  and an integer `expiresAt` unix timestamp. `setValue()` writes both via `FirestoreDocumentAdapterInterface::setFields()`,
+  storing `expiresAt` as `time() + $ttl` (or `null`). `getValue()` reads the fields: `null` when the
   document does not exist or `expiresAt` has passed, else the value; `getTtl()` returns
   `expiresAt - time()` (or `null`). Expiry guards are split into sequential single-condition `if`s for
   path coverage. **`google/cloud-firestore` is a `require-dev` + `suggest`, not a hard `require`** — it
@@ -148,8 +154,9 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   `$entityClassName` is left as a plain `string` and narrowed to
   `class-string<DatabaseKeyValueStoreEntityInterface>` by the `is_a($x, ..., true)` guard, which
   PHPStan understands with no docblock.
-- Dependencies are constructor-injected and typed against interfaces (`EntityManagerInterface`) or the
-  concrete external SDK class (`SecretManagerServiceClient`) so everything is mockable.
+- Dependencies are constructor-injected and typed against interfaces (`EntityManagerInterface`, `SecretManagerClientInterface`,
+  `FirestoreDocumentAdapterInterface`). Google SDK classes are only referenced from the adapters and
+  factories that wrap them. No public static functions, and no `new` of a collaborator outside a factory.
 - **A method that does not use `$this` must be `static`** (called via `self::`) — a stateless helper is
   static. Enforced for private methods by the shared `RequireStaticPrivateMethodRule` PHPStan rule (via
   `code-quality-scripts`' `config/phpstan.neon`); interface/override methods stay instance.
@@ -197,18 +204,20 @@ The `phpunit.xml` config is strict (`requireCoverageMetadata`, `beStrictAboutCov
 - Assert statically (`self::assertSame`) and reference the **same interface constants** production code
   uses for expected exception messages (`sprintf(GoogleSecretKeyValueStoreInterface::…_SPRINTF, …)`),
   so no strings are hardcoded in tests.
-- `GoogleSecretKeyValueStore::create()` is covered by real client construction against
+- `DefaultSecretManagerClientFactory` is covered by real client construction against
   `tests/test-credentials.json` (success) and a missing file (failure); it is the one path that
   touches the real Google SDK, and it stays green because the SDK only validates credentials lazily.
+  The factories that build stores are tested with a stubbed or mocked collaborator factory.
 
 ## Adding a feature
 
 1. Add the store/class + its matching `...Interface` in `src/`, with any constants (field names,
    message templates) on the interface. Concrete classes are `final`.
 2. Constructor-inject every collaborator (typed against an interface, or the external SDK class) so it
-   stays mockable — do not `new` a dependency inside a method except in a static `create()` factory.
+   stays mockable: do not `new` a dependency inside a method except in a factory class (behind its own interface, with a
+   non-static `create()`).
 3. Add a matching `#[CoversClass]` test under `tests/`, doubling all collaborators per the rules above.
 4. Run `composer fix-style`, then `composer check-style`, then `composer stan`, then `composer test`
    and **confirm the coverage report is 100%** on classes, lines, paths, methods, and branches.
-5. Never change an existing public method signature, class name, or namespace — external consumers
-   depend on them.
+5. Do not change an existing public method signature, class name, or namespace without a major
+   release: external consumers depend on them.
