@@ -24,6 +24,12 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --ignore-platform-req=ext-grpc
 
+      - name: Check the changelog
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          ./bin/php-changelog-check FETCH_HEAD
+
       - name: Check code style
         run: ./bin/php-cs ./src ./tests
 
