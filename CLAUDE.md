@@ -47,6 +47,12 @@ directly: `./bin/phpstan analyse --no-progress --memory-limit=-1`. CI
 to `main`, then enforces 100% coverage with `./bin/php-coverage-check` against the text coverage
 report the PHPUnit step writes to `.phpunit.cache/coverage.txt`.
 
+## Changelog
+
+`CHANGELOG.md` follows Keep a Changelog. A pull request that changes `src/` must add a line under
+`## [Unreleased]`; CI enforces it with `bin/php-changelog-check`. A release renames that section to the
+version and the date, and its text becomes the GitHub release notes.
+
 ## Architecture
 
 Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/`), mirrored under
