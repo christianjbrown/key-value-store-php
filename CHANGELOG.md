@@ -6,6 +6,8 @@ All notable changes to this package are recorded here. The format follows
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-30
+
 ### Changed
 
 - **Breaking:** `FirestoreKeyValueStore` now takes a `FirestoreDocumentAdapterInterface` in its
@@ -44,5 +46,6 @@ First stable release.
   `expiresAt` field.
 - `MemoryKeyValueStore`, a per-process value for tests and defaults.
 
-[Unreleased]: https://github.com/christianjbrown/key-value-store-php/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/christianjbrown/key-value-store-php/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/christianjbrown/key-value-store-php/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/christianjbrown/key-value-store-php/releases/tag/v1.0.0
