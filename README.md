@@ -90,15 +90,18 @@ implement `DatabaseKeyValueStoreEntityInterface`) throws `InvalidArgumentExcepti
 
 ### :lock: Google Secret Manager key-value store
 
-Reads and writes a [Google Secret Manager](https://cloud.google.com/secret-manager) secret. The
-quickest way to build one is the static `create()` factory, which constructs a real client from the
-`GOOGLE_APPLICATION_CREDENTIALS` environment variable:
+Reads and writes a [Google Secret Manager](https://cloud.google.com/secret-manager) secret. Build one
+with `GoogleSecretKeyValueStoreFactory`, which asks a `SecretManagerClientFactoryInterface` for a client.
+`DefaultSecretManagerClientFactory` builds the real client from the `GOOGLE_APPLICATION_CREDENTIALS`
+environment variable:
 
 ```php
-use ChristianBrown\KeyValueStore\GoogleSecretKeyValueStore;
+use ChristianBrown\KeyValueStore\DefaultSecretManagerClientFactory;
 use ChristianBrown\KeyValueStore\GoogleSecretKeyValueStoreExceptionInterface;
+use ChristianBrown\KeyValueStore\GoogleSecretKeyValueStoreFactory;
 
-$store = GoogleSecretKeyValueStore::create('projects/my-project/secrets/my-secret');
+$factory = new GoogleSecretKeyValueStoreFactory(new DefaultSecretManagerClientFactory());
+$store = $factory->create('projects/my-project/secrets/my-secret');
 
 try {
     $value = $store->getValue();      // the latest secret version's value, or null
@@ -109,15 +112,17 @@ try {
 }
 ```
 
-You can also inject a pre-built `Google\Cloud\SecretManager\V1\SecretManagerServiceClient` directly
-via the constructor (useful for tests):
+In application code, type-hint `GoogleSecretKeyValueStoreFactoryInterface` and inject the factory. To
+use your own client, implement `SecretManagerClientInterface` (or wrap a
+`Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient` in `GoogleSecretManagerClientAdapter`)
+and pass it straight to the constructor:
 
 ```php
 $store = new GoogleSecretKeyValueStore($client, 'projects/my-project/secrets/my-secret');
 ```
 
-:warning: Secret Manager has no notion of a TTL, so `getTtl()` — and any `setValue()` call that
-supplies a non-null `$ttl` — throws a `RuntimeException`.
+:warning: Secret Manager has no notion of a TTL, so this store implements only `KeyValueStoreInterface`
+(`getValue()` and `setValue()`), with no `getTtl()` and no `$ttl` argument.
 
 
 
@@ -125,8 +130,8 @@ supplies a non-null `$ttl` — throws a `RuntimeException`.
 
 Reads and writes a single [Google Firestore](https://cloud.google.com/firestore) document. It is
 serverless and connectionless — no VPC connector or database connection to manage. The value and an
-integer `expiresAt` unix timestamp are stored as two fields on the document. The static `create()`
-factory resolves the document from a `FirestoreClient`, a collection name, and a document id:
+integer `expiresAt` unix timestamp are stored as two fields on the document. `FirestoreKeyValueStoreFactory`
+builds the store from a `FirestoreClient`, a collection name, and a document id:
 
 > **Optional dependency.** `google/cloud-firestore` is not a hard requirement of this library (it
 > pulls in `ext-grpc`), so it is only suggested — install it yourself if you use this store:
@@ -134,12 +139,14 @@ factory resolves the document from a `FirestoreClient`, a collection name, and a
 
 
 ```php
-use ChristianBrown\KeyValueStore\FirestoreKeyValueStore;
+use ChristianBrown\KeyValueStore\DefaultFirestoreDocumentAdapterFactory;
+use ChristianBrown\KeyValueStore\FirestoreKeyValueStoreFactory;
 use Google\Cloud\Firestore\FirestoreClient;
 
 $firestoreClient = new FirestoreClient();
 
-$store = FirestoreKeyValueStore::create($firestoreClient, 'kv', 'my-key');
+$factory = new FirestoreKeyValueStoreFactory(new DefaultFirestoreDocumentAdapterFactory());
+$store = $factory->create($firestoreClient, 'kv', 'my-key');
 
 $store->setValue('a-secret-token', 3600); // value + optional TTL (seconds)
 
@@ -148,12 +155,14 @@ $ttl   = $store->getTtl();   // remaining seconds, or null when no TTL was set
 ```
 
 `getValue()` returns `null` when the document does not exist or its `expiresAt` has passed; `getTtl()`
-returns the remaining seconds (`expiresAt - time()`), or `null` when no expiry is set. You can also
-inject a pre-built `Google\Cloud\Firestore\DocumentReference` directly via the constructor (useful for
-tests):
+returns the remaining seconds (`expiresAt - time()`), or `null` when no expiry is set. In application code,
+type-hint `FirestoreKeyValueStoreFactoryInterface` and inject the factory. The store itself only talks
+to a `FirestoreDocumentAdapterInterface` (`getFields()` and `setFields()`), so you can also pass your
+own implementation, or a `FirestoreDocumentAdapter` around a `Google\Cloud\Firestore\DocumentReference`,
+straight to the constructor:
 
 ```php
-$store = new FirestoreKeyValueStore($documentReference);
+$store = new FirestoreKeyValueStore(new FirestoreDocumentAdapter($documentReference));
 ```
 
 
@@ -192,6 +201,26 @@ try {
 
 The database store throws `InvalidArgumentException` if constructed with an entity class that does not
 implement `DatabaseKeyValueStoreEntityInterface`.
+
+
+
+## :arrow_up: Upgrading to 2.0
+
+Version 2.0 removes the static `create()` factories and puts Firestore behind an adapter. Nothing else
+changes.
+
+- `GoogleSecretKeyValueStore::create($path)` is gone. Use
+  `(new GoogleSecretKeyValueStoreFactory(new DefaultSecretManagerClientFactory()))->create($path)`, or
+  inject a `GoogleSecretKeyValueStoreFactoryInterface`.
+- `FirestoreKeyValueStore::create($client, $collection, $id)` is gone. Use
+  `(new FirestoreKeyValueStoreFactory(new DefaultFirestoreDocumentAdapterFactory()))->create($client, $collection, $id)`,
+  or inject a `FirestoreKeyValueStoreFactoryInterface`.
+- `FirestoreKeyValueStore`'s constructor now takes a `FirestoreDocumentAdapterInterface` instead of a
+  `Google\Cloud\Firestore\DocumentReference`. Wrap a reference with `new FirestoreDocumentAdapter($reference)`.
+- `FirestoreDocumentReferenceFactoryInterface` and `DefaultFirestoreDocumentReferenceFactory` are
+  replaced by `FirestoreDocumentAdapterFactoryInterface` and `DefaultFirestoreDocumentAdapterFactory`,
+  which return an adapter rather than a `DocumentReference`.
+- `create()` is removed from `GoogleSecretKeyValueStoreInterface` and `FirestoreKeyValueStoreInterface`.
 
 
 

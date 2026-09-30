@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace ChristianBrown\KeyValueStore\Tests;
 
-use ChristianBrown\KeyValueStore\DefaultFirestoreDocumentReferenceFactory;
+use ChristianBrown\KeyValueStore\DefaultFirestoreDocumentAdapterFactory;
+use ChristianBrown\KeyValueStore\FirestoreDocumentAdapter;
+use ChristianBrown\KeyValueStore\FirestoreDocumentAdapterInterface;
 use Google\Cloud\Firestore\CollectionReference;
 use Google\Cloud\Firestore\DocumentReference;
 use Google\Cloud\Firestore\FirestoreClient;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\Exception as MockObjectException;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(DefaultFirestoreDocumentReferenceFactory::class)]
-final class DefaultFirestoreDocumentReferenceFactoryTest extends TestCase
+#[CoversClass(DefaultFirestoreDocumentAdapterFactory::class)]
+#[UsesClass(FirestoreDocumentAdapter::class)]
+final class DefaultFirestoreDocumentAdapterFactoryTest extends TestCase
 {
     /**
      * @throws MockObjectException
@@ -34,8 +38,8 @@ final class DefaultFirestoreDocumentReferenceFactoryTest extends TestCase
             ->with('kv')
             ->willReturn($collection);
 
-        $factory = new DefaultFirestoreDocumentReferenceFactory();
+        $adapter = (new DefaultFirestoreDocumentAdapterFactory())->create($client, 'kv', 'my-key');
 
-        self::assertSame($documentReference, $factory->create($client, 'kv', 'my-key'));
+        self::assertInstanceOf(FirestoreDocumentAdapterInterface::class, $adapter);
     }
 }

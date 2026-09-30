@@ -10,6 +10,4 @@ interface GoogleSecretKeyValueStoreInterface extends KeyValueStoreInterface
     public const string GET_VALUE_FAILED_SPRINTF = 'Failed to retrieve the "%s" secret value.';
     public const string SET_VALUE_FAILED_SPRINTF = 'Failed to update the "%s" secret value.';
     public const string VERSION_LATEST = '/versions/latest';
-
-    public static function create(string $secretPath): self;
 }

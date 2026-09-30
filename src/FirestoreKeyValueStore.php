@@ -4,38 +4,27 @@ declare(strict_types=1);
 
 namespace ChristianBrown\KeyValueStore;
 
-use Google\Cloud\Firestore\DocumentReference;
-use Google\Cloud\Firestore\DocumentSnapshot;
-use Google\Cloud\Firestore\FirestoreClient;
-
 use function is_int;
 use function is_string;
 use function time;
 
 final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
 {
-    private DocumentReference $documentReference;
+    private FirestoreDocumentAdapterInterface $document;
 
-    public function __construct(DocumentReference $documentReference)
+    public function __construct(FirestoreDocumentAdapterInterface $document)
     {
-        $this->documentReference = $documentReference;
-    }
-
-    public static function create(FirestoreClient $client, string $collection, string $documentId): FirestoreKeyValueStoreInterface
-    {
-        $documentReference = (new DefaultFirestoreDocumentReferenceFactory())->create($client, $collection, $documentId);
-
-        return new self($documentReference);
+        $this->document = $document;
     }
 
     public function getTtl(): ?int
     {
-        $snapshot = $this->documentReference->snapshot();
-        if (!$snapshot->exists()) {
+        $fields = $this->document->getFields();
+        if (null === $fields) {
             return null;
         }
 
-        $expiresAt = self::readExpiresAt($snapshot);
+        $expiresAt = self::readExpiresAt($fields);
         if (null === $expiresAt) {
             return null;
         }
@@ -45,19 +34,19 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
 
     public function getValue(): ?string
     {
-        $snapshot = $this->documentReference->snapshot();
-        if (!$snapshot->exists()) {
+        $fields = $this->document->getFields();
+        if (null === $fields) {
             return null;
         }
 
-        $expiresAt = self::readExpiresAt($snapshot);
+        $expiresAt = self::readExpiresAt($fields);
         if (null !== $expiresAt) {
             if ($expiresAt < time()) {
                 return null;
             }
         }
 
-        $value = $snapshot->get(self::FIELD_VALUE);
+        $value = $fields[self::FIELD_VALUE] ?? null;
         if (!is_string($value)) {
             return null;
         }
@@ -72,7 +61,7 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
             $expiresAt = time() + $ttl;
         }
 
-        $this->documentReference->set([
+        $this->document->setFields([
             self::FIELD_VALUE => $value,
             self::FIELD_EXPIRES_AT => $expiresAt,
         ]);
@@ -80,9 +69,12 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
         return $this;
     }
 
-    private static function readExpiresAt(DocumentSnapshot $snapshot): ?int
+    /**
+     * @param array<array-key, mixed> $fields
+     */
+    private static function readExpiresAt(array $fields): ?int
     {
-        $expiresAt = $snapshot->get(self::FIELD_EXPIRES_AT);
+        $expiresAt = $fields[self::FIELD_EXPIRES_AT] ?? null;
         if (!is_int($expiresAt)) {
             return null;
         }
