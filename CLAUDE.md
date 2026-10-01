@@ -78,13 +78,15 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   `#[ORM\MappedSuperclass]` that stores extend to get the `id` / `ttl` / `value` columns and their
   accessors for free. See the deliberate deviation below.
 - **`GoogleSecretKeyValueStore` / `GoogleSecretKeyValueStoreInterface`** — talks to Google Secret
-  Manager through the library-owned **`SecretManagerClientInterface`** port (two methods,
-  `accessSecretVersion(AccessSecretVersionRequest)` and `addSecretVersion(AddSecretVersionRequest)`,
-  mirroring the v2 SDK). That interface is **constructor-injected** so it is fully mockable — the
+  Manager through the library-owned **`SecretManagerClientInterface`** port, expressed in this package's
+  own terms (`accessLatest(string $versionName): ?string` and `addVersion(string $secretName, ?string
+  $value): void`), so the store never touches a Google class. The port throws
+  `SecretManagerClientExceptionInterface` (implemented by `SecretManagerClientException`). That interface is **constructor-injected** so it is fully mockable — the
   `google/cloud-secret-manager` v2 client (`V1\Client\SecretManagerServiceClient`) is `final` and
   cannot be doubled, so the store never depends on it directly. **`GoogleSecretManagerClientAdapter`**
   (`final`, implements `SecretManagerClientInterface`) is the single production implementation: it
-  wraps the real final v2 client and delegates each call one-to-one. There is no static `create()`:
+  wraps the real final v2 client, builds the v2 request objects and turns `ApiException` into
+  `SecretManagerClientException`. There is no static `create()`:
   **`GoogleSecretKeyValueStoreFactory`** (`final`, behind `GoogleSecretKeyValueStoreFactoryInterface`) is
   the way to build the store from a secret path. It is constructed with a
   **`SecretManagerClientFactoryInterface`** and `create(string $secretPath)` news up the store with the
@@ -94,11 +96,10 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   `RuntimeException(GoogleSecretKeyValueStoreInterface::CLIENT_START_FAILED)`. A consumer that wants a
   different client construction implements `SecretManagerClientFactoryInterface` itself.
   `getValue()` reads the `/versions/latest` version;
-  `setValue()` adds a new secret version — both build the v2 request objects
-  (`AccessSecretVersionRequest`/`AddSecretVersionRequest`) and call the port. Secret Manager has no
+  `setValue()` adds a new secret version, both through the port. Secret Manager has no
   TTL, so this store implements only the base `KeyValueStoreInterface` (no `getTtl()`, no TTL-bearing
-  `setValue()`) rather than throwing on an unsupported operation. Secret-access failures are normalized
-  into `GoogleSecretKeyValueStoreException`. The adapter's two pass-throughs are covered by building a
+  `setValue()`) rather than throwing on an unsupported operation. The store normalizes
+  `SecretManagerClientExceptionInterface` into `GoogleSecretKeyValueStoreException`. The adapter is covered by building a
   real v2 client over `google/gax`'s `Google\ApiCore\Testing\MockTransport` (plus a stubbed
   `CredentialsWrapper`) that returns a canned response — the one place the real final SDK client is
   exercised, alongside `DefaultSecretManagerClientFactory`.
@@ -118,15 +119,20 @@ Everything lives flat under the `ChristianBrown\KeyValueStore\` namespace (`src/
   `new FirestoreDocumentAdapter($client->collection($collection)->document($documentId))`).
   The document holds two fields (`FIELD_VALUE`, `FIELD_EXPIRES_AT` on the interface): the string value
   and an integer `expiresAt` unix timestamp. `setValue()` writes both via `FirestoreDocumentAdapterInterface::setFields()`,
-  storing `expiresAt` as `time() + $ttl` (or `null`). `getValue()` reads the fields: `null` when the
-  document does not exist or `expiresAt` has passed, else the value; `getTtl()` returns
-  `expiresAt - time()` (or `null`). Expiry guards are split into sequential single-condition `if`s for
+  storing `expiresAt` as now + `$ttl` (or `null`), where now comes from the constructor-injected PSR-20
+  `ClockInterface` (the factory takes the clock too and passes it on). `getValue()` reads the fields:
+  `null` when the document does not exist or `expiresAt` has passed, else the value; `getTtl()` returns
+  `expiresAt` minus the clock's now (or `null`). Expiry guards are split into sequential single-condition `if`s for
   path coverage. **`google/cloud-firestore` is a `require-dev` + `suggest`, not a hard `require`** — it
   pulls in `ext-grpc`, which no other store needs, so it stays optional; consumers who use this store
   install it (and `ext-grpc`) themselves. Because `ext-grpc` isn't present locally or in CI, the
   `composer install` in `.github/workflows/ci.yml` passes `--ignore-platform-req=ext-grpc` (the tests
   mock the whole Firestore chain, so grpc is never loaded at runtime).
-- **`MemoryKeyValueStore` / `MemoryKeyValueStoreInterface`** — trivial in-process holder.
+- **`MemoryKeyValueStore` / `MemoryKeyValueStoreInterface`** — in-process holder that takes a PSR-20
+  `ClockInterface` and honours TTLs the way the Firestore store does (an absolute expiry computed from
+  the clock; `getValue()` is `null` once passed, `getTtl()` is the remaining seconds). Production wiring
+  passes `Symfony\Component\Clock\NativeClock`; tests pass `MockClock`. Never call `time()` or build a
+  `DateTimeImmutable` in `src/`.
 
 ## Conventions (follow all of these)
 
