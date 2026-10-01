@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "description": [
+    "This is a library: composer.lock is not tracked, so there is no lock to maintain and lockFileMaintenance is deliberately absent. Renovate here bumps the composer.json constraints and the GitHub Actions versions instead.",
+    "Auto-merge: a PR merges automatically via GitHub native auto-merge once the required `build` check passes, which runs php-cs, PHPStan at level max and the suite at 100% coverage. That gate is strong enough to trust for a minor or patch bump.",
+    "MAJOR updates stay manual. A PHPUnit or PHPStan major reliably needs code changes, and a Symfony or Doctrine major warrants a spike."
+  ],
+  "dependencyDashboard": true,
+  "automerge": true,
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "description": "Keep major updates manual - they need review before merging.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    }
+  ]
+}
