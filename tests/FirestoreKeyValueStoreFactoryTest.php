@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\MockObject\Exception as MockObjectException;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Clock\MockClock;
 
 #[CoversClass(FirestoreKeyValueStoreFactory::class)]
 #[UsesClass(FirestoreKeyValueStore::class)]
@@ -31,7 +32,7 @@ final class FirestoreKeyValueStoreFactoryTest extends TestCase
             ->with($client, 'kv', 'my-key')
             ->willReturn(self::createStub(FirestoreDocumentAdapterInterface::class));
 
-        $store = (new FirestoreKeyValueStoreFactory($documentAdapterFactory))->create($client, 'kv', 'my-key');
+        $store = (new FirestoreKeyValueStoreFactory($documentAdapterFactory, new MockClock()))->create($client, 'kv', 'my-key');
 
         self::assertInstanceOf(FirestoreKeyValueStore::class, $store);
     }

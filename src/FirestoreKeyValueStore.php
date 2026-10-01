@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace ChristianBrown\KeyValueStore;
 
+use Psr\Clock\ClockInterface;
+
 use function is_int;
 use function is_string;
-use function time;
 
 final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
 {
+    private ClockInterface $clock;
     private FirestoreDocumentAdapterInterface $document;
 
-    public function __construct(FirestoreDocumentAdapterInterface $document)
+    public function __construct(FirestoreDocumentAdapterInterface $document, ClockInterface $clock)
     {
         $this->document = $document;
+        $this->clock = $clock;
     }
 
     public function getTtl(): ?int
@@ -29,7 +32,7 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
             return null;
         }
 
-        return $expiresAt - time();
+        return $expiresAt - $this->clock->now()->getTimestamp();
     }
 
     public function getValue(): ?string
@@ -41,7 +44,7 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
 
         $expiresAt = self::readExpiresAt($fields);
         if (null !== $expiresAt) {
-            if ($expiresAt < time()) {
+            if ($expiresAt < $this->clock->now()->getTimestamp()) {
                 return null;
             }
         }
@@ -58,7 +61,7 @@ final class FirestoreKeyValueStore implements FirestoreKeyValueStoreInterface
     {
         $expiresAt = null;
         if (null !== $ttl) {
-            $expiresAt = time() + $ttl;
+            $expiresAt = $this->clock->now()->getTimestamp() + $ttl;
         }
 
         $this->document->setFields([
