@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace ChristianBrown\KeyValueStore;
 
+use Google\ApiCore\ApiException;
 use Google\Cloud\SecretManager\V1\AccessSecretVersionRequest;
-use Google\Cloud\SecretManager\V1\AccessSecretVersionResponse;
 use Google\Cloud\SecretManager\V1\AddSecretVersionRequest;
 use Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient;
-use Google\Cloud\SecretManager\V1\SecretVersion;
+use Google\Cloud\SecretManager\V1\SecretPayload;
 
 final class GoogleSecretManagerClientAdapter implements SecretManagerClientInterface
 {
@@ -19,13 +19,27 @@ final class GoogleSecretManagerClientAdapter implements SecretManagerClientInter
         $this->client = $client;
     }
 
-    public function accessSecretVersion(AccessSecretVersionRequest $request): AccessSecretVersionResponse
+    public function accessLatest(string $versionName): ?string
     {
-        return $this->client->accessSecretVersion($request);
+        try {
+            $request = (new AccessSecretVersionRequest())->setName($versionName);
+            $response = $this->client->accessSecretVersion($request);
+        } catch (ApiException $exception) {
+            throw new SecretManagerClientException($exception->getMessage(), 0, $exception);
+        }
+
+        return $response->getPayload()?->getData();
     }
 
-    public function addSecretVersion(AddSecretVersionRequest $request): SecretVersion
+    public function addVersion(string $secretName, ?string $value): void
     {
-        return $this->client->addSecretVersion($request);
+        try {
+            $request = (new AddSecretVersionRequest())
+                ->setParent($secretName)
+                ->setPayload(new SecretPayload(['data' => $value]));
+            $this->client->addSecretVersion($request);
+        } catch (ApiException $exception) {
+            throw new SecretManagerClientException($exception->getMessage(), 0, $exception);
+        }
     }
 }

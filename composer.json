@@ -21,13 +21,15 @@
         "ext-pdo_mysql": "*",
         "doctrine/dbal": "^4.4.3",
         "doctrine/orm": "^3.6.7",
-        "google/cloud-secret-manager": "^2.0"
+        "google/cloud-secret-manager": "^2.0",
+        "psr/clock": "^1.0"
     },
     "require-dev": {
         "christianjbrown/code-quality-scripts": "^1.0",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^13.0",
-        "google/cloud-firestore": "^1.55 || ^2.0"
+        "google/cloud-firestore": "^1.55 || ^2.0",
+        "symfony/clock": "^7.0||^8.0"
     },
     "autoload": {
         "psr-4": {

@@ -6,6 +6,31 @@ All notable changes to this package are recorded here. The format follows
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-01
+
+### Added
+
+- `SecretManagerClientException` and `SecretManagerClientExceptionInterface`, thrown by a
+  `SecretManagerClientInterface` when the backing service fails.
+- `psr/clock` is now a required dependency, and `symfony/clock` a dev dependency used by the tests.
+
+### Changed
+
+- **Breaking:** `FirestoreKeyValueStore` takes a PSR-20 `Psr\Clock\ClockInterface` as a second
+  constructor argument and reads the time from it instead of calling `time()`.
+- **Breaking:** `FirestoreKeyValueStoreFactory` takes a `ClockInterface` as a second constructor
+  argument and passes it to every store it builds.
+- **Breaking:** `MemoryKeyValueStore` takes a `ClockInterface` in its constructor and now honours the TTL
+  given to `setValue()`: `getValue()` returns `null` once the TTL has passed, and `getTtl()` returns the
+  remaining seconds (or `null` when no TTL was set). Previously the TTL was echoed back unchanged and
+  never enforced.
+- **Breaking:** `SecretManagerClientInterface` is now expressed in this package's terms:
+  `accessLatest(string $versionName): ?string` and `addVersion(string $secretName, ?string $value): void`
+  replace `accessSecretVersion()` and `addSecretVersion()`, which took and returned Google request and
+  response objects. `GoogleSecretKeyValueStore` no longer builds or catches any Google class;
+  `GoogleSecretManagerClientAdapter` now builds the Google requests and turns `ApiException` into
+  `SecretManagerClientException`.
+
 ## [2.0.0] - 2026-09-30
 
 ### Changed
@@ -46,6 +71,7 @@ First stable release.
   `expiresAt` field.
 - `MemoryKeyValueStore`, a per-process value for tests and defaults.
 
-[Unreleased]: https://github.com/christianjbrown/key-value-store-php/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/christianjbrown/key-value-store-php/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/christianjbrown/key-value-store-php/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/christianjbrown/key-value-store-php/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/christianjbrown/key-value-store-php/releases/tag/v1.0.0

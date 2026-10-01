@@ -113,8 +113,9 @@ try {
 ```
 
 In application code, type-hint `GoogleSecretKeyValueStoreFactoryInterface` and inject the factory. To
-use your own client, implement `SecretManagerClientInterface` (or wrap a
-`Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient` in `GoogleSecretManagerClientAdapter`)
+use your own client, implement `SecretManagerClientInterface` (`accessLatest()` and `addVersion()`, throwing
+`SecretManagerClientExceptionInterface` on failure), or wrap a
+`Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient` in `GoogleSecretManagerClientAdapter`,
 and pass it straight to the constructor:
 
 ```php
@@ -142,10 +143,11 @@ builds the store from a `FirestoreClient`, a collection name, and a document id:
 use ChristianBrown\KeyValueStore\DefaultFirestoreDocumentAdapterFactory;
 use ChristianBrown\KeyValueStore\FirestoreKeyValueStoreFactory;
 use Google\Cloud\Firestore\FirestoreClient;
+use Symfony\Component\Clock\NativeClock;
 
 $firestoreClient = new FirestoreClient();
 
-$factory = new FirestoreKeyValueStoreFactory(new DefaultFirestoreDocumentAdapterFactory());
+$factory = new FirestoreKeyValueStoreFactory(new DefaultFirestoreDocumentAdapterFactory(), new NativeClock());
 $store = $factory->create($firestoreClient, 'kv', 'my-key');
 
 $store->setValue('a-secret-token', 3600); // value + optional TTL (seconds)
@@ -155,30 +157,36 @@ $ttl   = $store->getTtl();   // remaining seconds, or null when no TTL was set
 ```
 
 `getValue()` returns `null` when the document does not exist or its `expiresAt` has passed; `getTtl()`
-returns the remaining seconds (`expiresAt - time()`), or `null` when no expiry is set. In application code,
+returns the remaining seconds (`expiresAt` minus the clock's current time), or `null` when no expiry is set. In application code,
 type-hint `FirestoreKeyValueStoreFactoryInterface` and inject the factory. The store itself only talks
 to a `FirestoreDocumentAdapterInterface` (`getFields()` and `setFields()`), so you can also pass your
 own implementation, or a `FirestoreDocumentAdapter` around a `Google\Cloud\Firestore\DocumentReference`,
 straight to the constructor:
 
 ```php
-$store = new FirestoreKeyValueStore(new FirestoreDocumentAdapter($documentReference));
+$store = new FirestoreKeyValueStore(new FirestoreDocumentAdapter($documentReference), $clock);
 ```
+
+Both the store and the factory take a PSR-20 `Psr\Clock\ClockInterface`, so the current time is read
+from the clock on every call and tests can pass a fixed one.
 
 
 
 ### :zap: In-memory key-value store
 
-A per-process value that lives only for the current request. No configuration required:
+A per-process value that lives only for the current request. It takes a PSR-20 clock and honours the
+TTL like the other TTL-aware stores: the value reads as `null` once the TTL has passed, and `getTtl()`
+reports the seconds left.
 
 ```php
 use ChristianBrown\KeyValueStore\MemoryKeyValueStore;
+use Symfony\Component\Clock\NativeClock;
 
-$store = new MemoryKeyValueStore();
+$store = new MemoryKeyValueStore(new NativeClock());
 $store->setValue('hello', 60);
 
-$store->getValue(); // 'hello'
-$store->getTtl();   // 60
+$store->getValue(); // 'hello', or null after 60 seconds
+$store->getTtl();   // 60, counting down
 ```
 
 
@@ -201,6 +209,23 @@ try {
 
 The database store throws `InvalidArgumentException` if constructed with an entity class that does not
 implement `DatabaseKeyValueStoreEntityInterface`.
+
+
+
+## :arrow_up: Upgrading to 3.0
+
+Version 3.0 injects a PSR-20 clock and narrows the Secret Manager client interface.
+
+- `new FirestoreKeyValueStore($document)` becomes `new FirestoreKeyValueStore($document, $clock)`.
+- `new FirestoreKeyValueStoreFactory($adapterFactory)` becomes
+  `new FirestoreKeyValueStoreFactory($adapterFactory, $clock)`. Use `new Symfony\Component\Clock\NativeClock()`
+  in production.
+- `new MemoryKeyValueStore()` becomes `new MemoryKeyValueStore($clock)`, and the TTL is now enforced.
+- A custom `SecretManagerClientInterface` implements `accessLatest(string $versionName): ?string` and
+  `addVersion(string $secretName, ?string $value): void` instead of taking and returning Google request
+  and response objects. Throw `SecretManagerClientException` when the service fails.
+- `GoogleSecretKeyValueStore`, `GoogleSecretKeyValueStoreFactory` and `DefaultSecretManagerClientFactory`
+  keep their signatures.
 
 
 

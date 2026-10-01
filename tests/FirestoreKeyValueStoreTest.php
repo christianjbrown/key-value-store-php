@@ -10,18 +10,19 @@ use ChristianBrown\KeyValueStore\FirestoreKeyValueStoreInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\Exception as MockObjectException;
 use PHPUnit\Framework\TestCase;
-
-use function time;
+use Symfony\Component\Clock\MockClock;
 
 #[CoversClass(FirestoreKeyValueStore::class)]
 final class FirestoreKeyValueStoreTest extends TestCase
 {
+    private const int NOW = 1_700_000_000;
+
     /**
      * @throws MockObjectException
      */
     public function testGetTtlAbsent(): void
     {
-        $store = new FirestoreKeyValueStore($this->documentWithFields([]));
+        $store = new FirestoreKeyValueStore($this->documentWithFields([]), new MockClock('@1700000000'));
 
         self::assertNull($store->getTtl());
     }
@@ -31,7 +32,7 @@ final class FirestoreKeyValueStoreTest extends TestCase
      */
     public function testGetTtlNotExists(): void
     {
-        $store = new FirestoreKeyValueStore($this->documentWithFields(null));
+        $store = new FirestoreKeyValueStore($this->documentWithFields(null), new MockClock('@1700000000'));
 
         self::assertNull($store->getTtl());
     }
@@ -41,13 +42,13 @@ final class FirestoreKeyValueStoreTest extends TestCase
      */
     public function testGetTtlPresent(): void
     {
-        $expiresAt = time() + 60;
+        $expiresAt = self::NOW + 60;
 
         $store = new FirestoreKeyValueStore($this->documentWithFields([
             FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => $expiresAt,
-        ]));
+        ]), new MockClock('@1700000000'));
 
-        self::assertSame($expiresAt - time(), $store->getTtl());
+        self::assertSame(60, $store->getTtl());
     }
 
     /**
@@ -56,9 +57,9 @@ final class FirestoreKeyValueStoreTest extends TestCase
     public function testGetValueExpired(): void
     {
         $store = new FirestoreKeyValueStore($this->documentWithFields([
-            FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => time() - 60,
+            FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => self::NOW - 60,
             FirestoreKeyValueStoreInterface::FIELD_VALUE => 'test-value',
-        ]));
+        ]), new MockClock('@1700000000'));
 
         self::assertNull($store->getValue());
     }
@@ -68,7 +69,7 @@ final class FirestoreKeyValueStoreTest extends TestCase
      */
     public function testGetValueNotExists(): void
     {
-        $store = new FirestoreKeyValueStore($this->documentWithFields(null));
+        $store = new FirestoreKeyValueStore($this->documentWithFields(null), new MockClock('@1700000000'));
 
         self::assertNull($store->getValue());
     }
@@ -79,9 +80,9 @@ final class FirestoreKeyValueStoreTest extends TestCase
     public function testGetValueNotExpiredNotStored(): void
     {
         $store = new FirestoreKeyValueStore($this->documentWithFields([
-            FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => time() + 60,
+            FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => self::NOW + 60,
             FirestoreKeyValueStoreInterface::FIELD_VALUE => null,
-        ]));
+        ]), new MockClock('@1700000000'));
 
         self::assertNull($store->getValue());
     }
@@ -91,7 +92,7 @@ final class FirestoreKeyValueStoreTest extends TestCase
      */
     public function testGetValueNotStored(): void
     {
-        $store = new FirestoreKeyValueStore($this->documentWithFields([]));
+        $store = new FirestoreKeyValueStore($this->documentWithFields([]), new MockClock('@1700000000'));
 
         self::assertNull($store->getValue());
     }
@@ -104,7 +105,7 @@ final class FirestoreKeyValueStoreTest extends TestCase
         $store = new FirestoreKeyValueStore($this->documentWithFields([
             FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => null,
             FirestoreKeyValueStoreInterface::FIELD_VALUE => 'test-value',
-        ]));
+        ]), new MockClock('@1700000000'));
 
         self::assertSame('test-value', $store->getValue());
     }
@@ -115,9 +116,9 @@ final class FirestoreKeyValueStoreTest extends TestCase
     public function testGetValueValid(): void
     {
         $store = new FirestoreKeyValueStore($this->documentWithFields([
-            FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => time() + 60,
+            FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => self::NOW + 60,
             FirestoreKeyValueStoreInterface::FIELD_VALUE => 'test-value',
-        ]));
+        ]), new MockClock('@1700000000'));
 
         self::assertSame('test-value', $store->getValue());
     }
@@ -135,7 +136,7 @@ final class FirestoreKeyValueStoreTest extends TestCase
                 FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT => null,
             ]);
 
-        $store = new FirestoreKeyValueStore($document);
+        $store = new FirestoreKeyValueStore($document, new MockClock('@1700000000'));
 
         self::assertSame($store, $store->setValue('test-value'));
     }
@@ -145,22 +146,20 @@ final class FirestoreKeyValueStoreTest extends TestCase
      */
     public function testSetValueTtl(): void
     {
-        $before = time();
-
         $document = self::createMock(FirestoreDocumentAdapterInterface::class);
         $document->expects(self::once())
             ->method('setFields')
             ->with(self::callback(
-                static function (array $fields) use ($before): bool {
+                static function (array $fields): bool {
                     if ('test-value' !== $fields[FirestoreKeyValueStoreInterface::FIELD_VALUE]) {
                         return false;
                     }
 
-                    return $fields[FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT] >= $before + 60;
+                    return self::NOW + 60 === $fields[FirestoreKeyValueStoreInterface::FIELD_EXPIRES_AT];
                 },
             ));
 
-        $store = new FirestoreKeyValueStore($document);
+        $store = new FirestoreKeyValueStore($document, new MockClock('@1700000000'));
 
         self::assertSame($store, $store->setValue('test-value', 60));
     }
