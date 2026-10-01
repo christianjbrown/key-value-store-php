@@ -6,6 +6,8 @@ All notable changes to this package are recorded here. The format follows
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-01
+
 ### Changed
 
 - The archive Composer installs no longer contains the tests, CI and editor configuration, `CLAUDE.md` or other development-only files, only the library itself, its README, CHANGELOG and LICENSE.
@@ -75,7 +77,8 @@ First stable release.
   `expiresAt` field.
 - `MemoryKeyValueStore`, a per-process value for tests and defaults.
 
-[Unreleased]: https://github.com/christianjbrown/key-value-store-php/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/christianjbrown/key-value-store-php/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/christianjbrown/key-value-store-php/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/christianjbrown/key-value-store-php/compare/v2.0.0...v3.0.0
 [2.0.0]: https://github.com/christianjbrown/key-value-store-php/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/christianjbrown/key-value-store-php/releases/tag/v1.0.0
